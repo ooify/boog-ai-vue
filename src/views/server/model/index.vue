@@ -63,7 +63,7 @@
     </el-row>
     <el-drawer v-model="openDrawer" title="Ollama管理" :direction="'rtl'">
       <el-form label-position="top">
-        {{ ollamaURLConfig }}
+        <!-- {{ ollamaURLConfig }} -->
         <el-form-item label="URL">
           <el-col :span="19">
             <el-input style="width: auto;" v-model="ollamaURLConfig.configValue" type="text" placeholder="ollama url"
@@ -76,31 +76,55 @@
           <el-col :span="8">
             <el-button icon="Refresh" @click="getOllamaModels">获取模型</el-button>
           </el-col>
-          <el-col :span="16">
+          <el-col :span="12">
             <el-input clearable v-model="modelTag" placeholder="pull ollama model enter tag">
               <template #append>
                 <el-button icon="Download" @click="pullOllamaModel" />
               </template>
             </el-input>
           </el-col>
-          <el-progress v-if="showProgress" :percentage="100" status="success" />
-          <el-table v-loading="loading" :data="ollamaModels" style="margin-top: 16px">
+
+          <!-- 简化的文本风格进度显示 -->
+          <el-collapse v-model="activeCollapses" class="progress-collapse">
+            <el-collapse-item name="progress" :title="`模型状态: ${showProgress ? '下载中' : '空闲'}`">
+              <div class="progress-text-container" v-if="showProgress">
+                <div class="progress-text-item">
+                  <span class="progress-label">状态:</span>
+                  <span class="progress-value" :class="getStatusClass()">{{ progressText }}</span>
+                </div>
+                <div class="progress-text-item">
+                  <span class="progress-label">进度:</span>
+                  <span class="progress-value">{{ progressPercentage }}%</span>
+                </div>
+                <div class="progress-text-item" v-if="isDownloading">
+                  <span class="progress-label">层数:</span>
+                  <span class="progress-value">{{ Object.keys(layerProgress).length }}</span>
+                </div>
+                <div class="progress-text-item" v-if="isDownloading && Object.keys(layerProgress).length > 0">
+                  <span class="progress-label">下载大小:</span>
+                  <span class="progress-value">{{ formatTotalSize() }}</span>
+                </div>
+              </div>
+              <div v-else class="progress-text-empty">
+                当前没有下载任务
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+
+          <el-table v-loading="loading" :data="ollamaModels" style="margin-top: 16px; width: 100%;">
             <el-table-column label="模型代码" align="center" prop="model" width="150" />
             <el-table-column label="模型名称" align="center" prop="name" width="150" />
             <el-table-column label="模型大小" align="center" prop="size" :formatter="formatModelSize" />
             <el-table-column label="模型规格" align="center" prop="details.parameter_size" />
-            <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="130">
+            <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
               <template #default="scope">
                 <el-button link type="primary" icon="DocumentAdd" @click="handleModelAdd(scope.row)">添加</el-button>
-                <el-button link type="primary" icon="Delete" @click="handleModelDelete(scope.row)">删除</el-button>
+                <el-button link type="primary" icon="Delete" @click="deleteOllamaModel(scope.row.model)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-form-item>
       </el-form>
-
-
-
     </el-drawer>
 
     <el-table v-loading="loading" :data="modelList" @selection-change="handleSelectionChange">
@@ -260,7 +284,7 @@
 import { listModel, getModel, delModel, addModel, updateModel } from "@/api/server/model";
 import { getConfigKey, listConfig, updateConfig } from "@/api/system/config";
 import axios from 'axios';
-import { onMounted } from 'vue';
+import { ref } from 'vue';
 const { proxy } = getCurrentInstance();
 const { boog_ai_model_tag, boog_ai_default, boog_ai_status, boog_ai_model_type } = proxy.useDict('boog_ai_model_tag', 'boog_ai_default', 'boog_ai_status', 'boog_ai_model_type');
 
@@ -314,7 +338,6 @@ const updateUrl = () => {
 
 const getOllamaModels = () => {
   axios.get(ollamaURLConfig.value.configValue + '/api/tags').then(res => {
-    console.log(res.data.models);
     ollamaModels.value = res.data.models;
   }).catch(err => {
     proxy.$modal.msgError("请输入正确的URL");
@@ -347,38 +370,221 @@ const handleModelAdd = (model) => {
   title.value = "添加模型";
 };
 
-const handleModelDelete = (model) => {
-  const modelCode = model.model;
-  proxy.$modal.confirm('是否确认删除模型编号为"' + modelCode + '"的数据项？').then(function () {
-    return delModel(modelCode);
-  }).then(() => {
-    getList();
-    proxy.$modal.msgSuccess("删除成功");
-  }).catch(() => { });
-}
-
 const modelTag = ref("");
-const showProgress = ref(false)
-const pullOllamaModel = () => {
-  console.log(modelTag.value);
-  //   curl http://localhost:11434/api/pull -d '{
-  //   "model": "llama3.2"
-  // }'
-  axios.post(ollamaURLConfig.value.configValue + '/api/pull', {
-    model: modelTag.value
-  }).then(res => {
-    console.log(res);
-    if (res.status === 200) {
-      proxy.$modal.msgSuccess(res.data);
-    } else {
-      proxy.$modal.msgError(res.data);
-    }
-  }).catch(err => {
-    proxy.$modal.msgError("请求失败");
+const showProgress = ref(false);
+const progressPercentage = ref(0);
+const progressStatus = ref("");
+const progressText = ref("");
+const layerProgress = ref({}); // Track progress of multiple layers
+const progressIndeterminate = ref(false);
+const isDownloading = ref(false);
+
+const calculateOverallProgress = () => {
+  // Calculate overall progress across all layers
+  const layers = Object.values(layerProgress.value);
+  if (layers.length === 0) return 0;
+
+  let totalBytes = 0;
+  let completedBytes = 0;
+
+  layers.forEach(layer => {
+    totalBytes += layer.total || 0;
+    completedBytes += layer.completed || 0;
   });
-}
+
+  if (totalBytes === 0) return 5; // Initial progress
+
+  // Scale to 5-95% range for downloading phase
+  const downloadPercentage = (completedBytes / totalBytes) * 90 + 5;
+  return Math.min(Math.floor(downloadPercentage), 95);
+};
+
+const pullOllamaModel = () => {
+  if (!modelTag.value) {
+    proxy.$modal.msgError("请输入模型标签");
+    return;
+  }
+
+  // 强制设置进度条可见，确保UI更新
+  showProgress.value = true;
+  progressPercentage.value = 1; // 从1%开始，确保有可见变化
+  progressStatus.value = "";
+  progressText.value = "正在准备下载...";
+  layerProgress.value = {};
+  isDownloading.value = false;
 
 
+  // 使用XMLHttpRequest来手动处理流式响应
+  const xhr = new XMLHttpRequest();
+  let buffer = "";
+
+  xhr.open('POST', `${ollamaURLConfig.value.configValue}/api/pull`, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+
+  // 确保响应立即可见
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState > 1) { // OPENED状态之后
+      // 强制确保进度条显示
+      showProgress.value = true;
+    }
+  };
+
+  xhr.onprogress = function () {
+    // 再次确保进度条显示
+    if (!showProgress.value) {
+      showProgress.value = true;
+    }
+
+
+    // 获取新的响应文本
+    const newResponseText = xhr.responseText;
+    // 找出新添加的部分
+    const newText = newResponseText.substring(buffer.length);
+    buffer = newResponseText;
+
+    // 处理新添加的文本行
+    const lines = newText.split('\n');
+
+    lines.forEach(line => {
+      if (line.trim()) {
+        try {
+          const data = JSON.parse(line);
+
+          // 更新进度条UI
+          handleStatusUpdate(data);
+        } catch (e) {
+          // 可能是部分JSON，忽略错误
+        }
+      }
+    });
+  };
+
+  // 处理完成事件
+  xhr.onload = function () {
+    if (xhr.status === 200) {
+      // 最后检查是否有未处理的行
+      const lines = buffer.split('\n');
+      let foundSuccess = false;
+
+      lines.forEach(line => {
+        if (line.trim()) {
+          try {
+            const data = JSON.parse(line);
+            if (data.status === "success") {
+              foundSuccess = true;
+              handleStatusUpdate(data);
+            }
+          } catch (e) {
+
+          }
+        }
+      });
+
+      if (!foundSuccess) {
+        // 如果未找到成功状态，但请求已完成，可能是提前结束
+        progressText.value = "下载完成";
+        progressPercentage.value = 100;
+        progressStatus.value = "success";
+        progressIndeterminate.value = false;
+        isDownloading.value = false;
+
+        setTimeout(() => {
+          showProgress.value = false;
+          activeCollapses.value = []; // 关闭折叠面板
+          proxy.$modal.msgSuccess("模型下载成功");
+          getOllamaModels(); // 刷新模型列表
+        }, 2000);
+      }
+    } else {
+
+      showProgress.value = false;
+      proxy.$modal.msgError(`请求失败: ${xhr.statusText}`);
+    }
+  };
+
+  // 处理错误
+  xhr.onerror = function () {
+
+    showProgress.value = false;
+    proxy.$modal.msgError("网络错误，请检查连接");
+  };
+
+  // 发送请求
+  xhr.send(JSON.stringify({
+    name: modelTag.value,
+    stream: true
+  }));
+};
+
+// 处理不同状态的更新
+const handleStatusUpdate = (data) => {
+
+
+  if (data.status === "pulling manifest") {
+    progressText.value = "正在获取模型信息...";
+    progressPercentage.value = 5;
+    progressIndeterminate.value = true;
+    isDownloading.value = false;
+  }
+  else if (data.status && data.status.startsWith("pulling")) {
+    progressIndeterminate.value = false;
+    isDownloading.value = true;
+    // 更新特定层的进度
+    if (data.digest) {
+      layerProgress.value[data.digest] = {
+        total: data.total || 0,
+        completed: data.completed || 0
+      };
+
+      // 计算并更新总体进度
+      progressPercentage.value = calculateOverallProgress();
+
+      // 获取所有层的总大小和已完成大小
+      const totalSum = Object.values(layerProgress.value).reduce((sum, layer) => sum + (layer.total || 0), 0);
+      const completedSum = Object.values(layerProgress.value).reduce((sum, layer) => sum + (layer.completed || 0), 0);
+
+      // 格式化显示大小
+      if (totalSum > 0) {
+        const totalGB = (totalSum / (1024 * 1024 * 1024)).toFixed(2);
+        const completedGB = (completedSum / (1024 * 1024 * 1024)).toFixed(2);
+        progressText.value = `下载中: ${completedGB}/${totalGB} GB (${Object.keys(layerProgress.value).length} 层)`;
+      }
+    }
+  }
+  else if (data.status === "verifying sha256 digest") {
+    progressText.value = "正在验证文件完整性...";
+    progressPercentage.value = 96;
+    progressIndeterminate.value = true;
+    isDownloading.value = false;
+  }
+  else if (data.status === "writing manifest") {
+    progressText.value = "正在写入模型信息...";
+    progressPercentage.value = 98;
+    progressIndeterminate.value = true;
+    isDownloading.value = false;
+  }
+  else if (data.status === "removing any unused layers") {
+    progressText.value = "正在清理临时文件...";
+    progressPercentage.value = 99;
+    progressIndeterminate.value = true;
+    isDownloading.value = false;
+  }
+  else if (data.status === "success") {
+    progressText.value = "下载完成";
+    progressPercentage.value = 100;
+    progressStatus.value = "success";
+    progressIndeterminate.value = false;
+    isDownloading.value = false;
+
+    // 延迟隐藏进度条，确保用户能看到完成状态
+    setTimeout(() => {
+      showProgress.value = false;
+      activeCollapses.value = []; // 关闭折叠面板
+      proxy.$modal.msgSuccess("模型下载成功");
+      getOllamaModels(); // 刷新模型列表
+    }, 2000);
+  }
+};
 
 const data = reactive({
   form: {},
@@ -544,8 +750,272 @@ function handleExport() {
   }, `model_${new Date().getTime()}.xlsx`)
 }
 
-function mangerOllama() {
 
-}
+// 折叠面板激活项
+const activeCollapses = ref(['progress']);
+
+// 格式化总下载大小
+const formatTotalSize = () => {
+  const totalSum = Object.values(layerProgress.value).reduce((sum, layer) => sum + (layer.total || 0), 0);
+  const completedSum = Object.values(layerProgress.value).reduce((sum, layer) => sum + (layer.completed || 0), 0);
+
+  if (totalSum > 0) {
+    const totalGB = (totalSum / (1024 * 1024 * 1024)).toFixed(2);
+    const completedGB = (completedSum / (1024 * 1024 * 1024)).toFixed(2);
+    return `${completedGB}/${totalGB} GB`;
+  }
+  return '计算中...';
+};
+
+// 获取状态样式类
+const getStatusClass = () => {
+  if (progressStatus.value === 'success') {
+    return 'status-success';
+  } else if (progressStatus.value === 'exception') {
+    return 'status-error';
+  } else if (isDownloading.value) {
+    return 'status-downloading';
+  } else {
+    return 'status-processing';
+  }
+};
+
+// 删除Ollama模型
+const deleteOllamaModel = (modelName) => {
+  proxy.$modal.confirm(`确定要删除本地模型 "${modelName}" 吗？此操作将删除所有相关数据。`).then(() => {
+    // 显示加载状态
+    showProgress.value = true;
+    progressText.value = `正在删除模型 ${modelName}...`;
+    progressPercentage.value = 50;
+    progressIndeterminate.value = true;
+    progressStatus.value = "";
+
+    // 发送删除请求
+    axios.delete(`${ollamaURLConfig.value.configValue}/api/delete`, {
+      data: {
+        name: modelName
+      }
+    })
+      .then(response => {
+        if (response.status === 200) {
+          // 删除成功
+          progressText.value = `模型 ${modelName} 已删除`;
+          progressPercentage.value = 100;
+          progressStatus.value = "success";
+          progressIndeterminate.value = false;
+
+          setTimeout(() => {
+            showProgress.value = false;
+            proxy.$modal.msgSuccess(`模型 ${modelName} 已成功删除`);
+            getOllamaModels(); // 刷新模型列表
+          }, 1500);
+        } else {
+          throw new Error(`响应状态码: ${response.status}`);
+        }
+      })
+      .catch(err => {
+        progressText.value = `删除失败: ${err.message}`;
+        progressPercentage.value = 0;
+        progressStatus.value = "exception";
+        progressIndeterminate.value = false;
+
+        setTimeout(() => {
+          showProgress.value = false;
+          proxy.$modal.msgError(`删除失败: ${err.message}`);
+        }, 1500);
+      });
+  }).catch(() => {
+    // 取消删除操作
+  });
+};
+
 getList();
 </script>
+
+<style scoped>
+.progress-container {
+  margin: 15px 0;
+  padding: 15px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background-color: #f5f7fa;
+  transition: all 0.3s;
+}
+
+.progress-container:hover {
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.debug-info {
+  margin: 10px 0;
+  padding: 8px;
+  color: #606266;
+  font-size: 12px;
+  background-color: #f0f9eb;
+  border-radius: 4px;
+  border-left: 3px solid #67c23a;
+}
+
+/* 自定义进度条样式 */
+.custom-progress-container {
+  margin: 15px 0;
+  padding: 15px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background-color: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.progress-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.progress-percentage {
+  font-size: 14px;
+  color: #606266;
+  font-weight: bold;
+}
+
+.progress-bar-container {
+  height: 20px;
+  background-color: #ebeef5;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #409EFF;
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+.progress-bar-striped {
+  background-image: linear-gradient(45deg,
+      rgba(255, 255, 255, 0.15) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.15) 75%,
+      transparent 75%,
+      transparent);
+  background-size: 20px 20px;
+}
+
+.progress-bar-animated {
+  animation: progress-bar-stripes 2s linear infinite;
+}
+
+.progress-indeterminate {
+  width: 50% !important;
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-bar-stripes {
+  from {
+    background-position: 40px 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.progress-details {
+  display: flex;
+  justify-content: space-between;
+  color: #606266;
+  font-size: 12px;
+}
+
+.progress-detail-item {
+  display: flex;
+  align-items: center;
+}
+
+.progress-detail-item i {
+  margin-right: 5px;
+}
+
+.progress-status {
+  margin-left: 5px;
+}
+
+.progress-collapse {
+  width: 100%;
+  margin: 15px 0;
+}
+
+.progress-text-container {
+  padding: 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.progress-text-item {
+  display: flex;
+  align-items: center;
+  margin-right: 20px;
+  min-width: 150px;
+}
+
+.progress-label {
+  color: #606266;
+  margin-right: 8px;
+  font-weight: bold;
+  min-width: 70px;
+}
+
+.progress-value {
+  color: #303133;
+}
+
+.progress-text-empty {
+  color: #909399;
+  padding: 10px 0;
+  text-align: center;
+  font-style: italic;
+}
+
+.status-success {
+  color: #67C23A;
+  font-weight: bold;
+}
+
+.status-error {
+  color: #F56C6C;
+  font-weight: bold;
+}
+
+.status-downloading {
+  color: #409EFF;
+  font-weight: bold;
+}
+
+.status-processing {
+  color: #E6A23C;
+  font-weight: bold;
+}
+</style>
