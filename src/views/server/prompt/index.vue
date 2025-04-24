@@ -1,59 +1,33 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="提示词名称" prop="promptName">
-        <el-input
-          v-model="queryParams.promptName"
-          placeholder="请输入提示词名称"
-          clearable
-          @keyup.enter="handleQuery"
-        />
+      <el-form-item label="名称" prop="promptName">
+        <el-input v-model="queryParams.promptName" placeholder="请输入提示词名称" clearable @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="模型id" prop="modelId">
-        <el-input
-          v-model="queryParams.modelId"
-          placeholder="请输入模型id"
-          clearable
-          @keyup.enter="handleQuery"
-        />
+      <el-form-item label="模型" prop="modelId">
+        <el-select v-model="queryParams.modelId" placeholder="请选择模型">
+          <el-option v-for="dict in modelList" :key="dict.modelId" :label="dict.modelName"
+            :value="dict.modelId"></el-option>
+        </el-select>
       </el-form-item>
-      <el-form-item label="提示词类型" prop="tag">
+      <el-form-item label="类型" prop="tag">
         <el-select v-model="queryParams.tag" placeholder="请选择提示词类型" clearable>
-          <el-option
-            v-for="dict in boog_ai_prompt_tag"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
+          <el-option v-for="dict in boog_ai_prompt_tag" :key="dict.value" :label="dict.label" :value="dict.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态" prop="status">
         <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
-          <el-option
-            v-for="dict in boog_ai_status"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
+          <el-option v-for="dict in boog_ai_status" :key="dict.value" :label="dict.label" :value="dict.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="默认" prop="isDefault">
-        <el-input
-          v-model="queryParams.isDefault"
-          placeholder="请输入默认"
-          clearable
-          @keyup.enter="handleQuery"
-        />
+        <el-select v-model="queryParams.isDefault" placeholder="请选择默认" clearable>
+          <el-option v-for="dict in boog_ai_default" :key="dict.value" :label="dict.label" :value="dict.value" />
+        </el-select>
       </el-form-item>
       <el-form-item label="创建时间" style="width: 308px">
-        <el-date-picker
-          v-model="daterangeCreateTime"
-          value-format="YYYY-MM-DD"
-          type="daterange"
-          range-separator="-"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-        ></el-date-picker>
+        <el-date-picker v-model="daterangeCreateTime" value-format="YYYY-MM-DD" type="daterange" range-separator="-"
+          start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -63,128 +37,117 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          icon="Plus"
-          @click="handleAdd"
-          v-hasPermi="['server:prompt:add']"
-        >新增</el-button>
+        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['server:prompt:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="Edit"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['server:prompt:edit']"
-        >修改</el-button>
+        <el-button type="success" plain icon="Edit" :disabled="single" @click="handleUpdate"
+          v-hasPermi="['server:prompt:edit']">修改</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="Delete"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['server:prompt:remove']"
-        >删除</el-button>
+        <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['server:prompt:remove']">删除</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="Download"
-          @click="handleExport"
-          v-hasPermi="['server:prompt:export']"
-        >导出</el-button>
+        <el-button type="warning" plain icon="Download" @click="handleExport"
+          v-hasPermi="['server:prompt:export']">导出</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="promptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="${comment}" align="center" prop="promptId" />
+      <el-table-column label="提示词id" align="center" prop="promptId" width="80" />
       <el-table-column label="提示词名称" align="center" prop="promptName" />
       <el-table-column label="提示词内容" align="center" prop="promptText" />
       <el-table-column label="描述" align="center" prop="description" />
-      <el-table-column label="模型id" align="center" prop="modelId" />
-      <el-table-column label="提示词类型" align="center" prop="tag">
+      <el-table-column label="模型id" align="center" prop="modelId" width="80" />
+      <el-table-column label="类型" align="center" prop="tag" width="80">
         <template #default="scope">
-          <dict-tag :options="boog_ai_prompt_tag" :value="scope.row.tag"/>
+          <dict-tag :options="boog_ai_prompt_tag" :value="scope.row.tag" />
         </template>
       </el-table-column>
       <el-table-column label="状态" align="center" prop="status">
         <template #default="scope">
-          <dict-tag :options="boog_ai_status" :value="scope.row.status"/>
+          <dict-tag :options="boog_ai_status" :value="scope.row.status" />
         </template>
       </el-table-column>
-      <el-table-column label="默认" align="center" prop="isDefault" />
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+      <el-table-column label="默认" align="center" prop="isDefault">
+        <template #default="scope">
+          <dict-tag :options="boog_ai_default" :value="scope.row.isDefault" />
+        </template>
+      </el-table-column>
+      <el-table-column label="创建时间" align="center" prop="createTime" width="130">
         <template #default="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
+      <el-table-column label="更新时间" align="center" prop="updateTime" width="130">
         <template #default="scope">
           <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="130">
         <template #default="scope">
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['server:prompt:edit']">修改</el-button>
-          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['server:prompt:remove']">删除</el-button>
+          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)"
+            v-hasPermi="['server:prompt:edit']">修改</el-button>
+          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)"
+            v-hasPermi="['server:prompt:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
-    
-    <pagination
-      v-show="total>0"
-      :total="total"
-      v-model:page="queryParams.pageNum"
-      v-model:limit="queryParams.pageSize"
-      @pagination="getList"
-    />
+
+    <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum"
+      v-model:limit="queryParams.pageSize" @pagination="getList" />
 
     <!-- 添加或修改提示词对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="600px" append-to-body>
       <el-form ref="promptRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="提示词名称" prop="promptName">
+        <el-form-item label="名称" prop="promptName">
           <el-input v-model="form.promptName" placeholder="请输入提示词名称" />
         </el-form-item>
-        <el-form-item label="提示词内容" prop="promptText">
-          <el-input v-model="form.promptText" type="textarea" placeholder="请输入内容" />
+        <el-form-item label="内容" prop="promptText">
+          <!-- <el-input v-model="form.promptText" type="textarea" placeholder="请输入内容" /> -->
+           <editor v-model="form.promptText" :height="200"/>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" placeholder="请输入内容" />
         </el-form-item>
-        <el-form-item label="模型id" prop="modelId">
-          <el-input v-model="form.modelId" placeholder="请输入模型id" />
-        </el-form-item>
-        <el-form-item label="提示词类型" prop="tag">
-          <el-select v-model="form.tag" placeholder="请选择提示词类型">
-            <el-option
-              v-for="dict in boog_ai_prompt_tag"
-              :key="dict.value"
-              :label="dict.label"
-              :value="dict.value"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="dict in boog_ai_status"
-              :key="dict.value"
-              :label="dict.label"
-              :value="dict.value"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="默认" prop="isDefault">
-          <el-input v-model="form.isDefault" placeholder="请输入默认" />
-        </el-form-item>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="模型" prop="modelId">
+              <el-select v-model="form.modelId" placeholder="请选择模型">
+                <el-option v-for="dict in modelList" :key="dict.modelId" :label="dict.modelName"
+                  :value="dict.modelId"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="类型" prop="tag">
+              <el-select v-model="form.tag" placeholder="请选择提示词类型">
+                <el-option v-for="dict in boog_ai_prompt_tag" :key="dict.value" :label="dict.label"
+                  :value="dict.value"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="状态" prop="status">
+              <el-switch v-model="form.status" active-value="1" inactive-value="0" active-text="启用"
+                inactive-text="禁用"></el-switch>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="12">
+            <el-form-item label="设为默认" prop="isDefault">
+              <el-switch v-model="form.isDefault" active-value="1" inactive-value="0" active-text="是" inactive-text="否"
+                :disabled="form.status === '0'"></el-switch>
+              <div v-if="form.status === '0' && form.isDefault === '1'" class="el-form-item__error">
+                禁用状态下不能设为默认模型
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -198,9 +161,10 @@
 
 <script setup name="Prompt">
 import { listPrompt, getPrompt, delPrompt, addPrompt, updatePrompt } from "@/api/server/prompt";
-
+import { listModel } from "@/api/server/model";
+import JsonEditorVue from 'json-editor-vue'
 const { proxy } = getCurrentInstance();
-const { boog_ai_prompt_tag, boog_ai_status } = proxy.useDict('boog_ai_prompt_tag', 'boog_ai_status');
+const { boog_ai_prompt_tag, boog_ai_default, boog_ai_status } = proxy.useDict('boog_ai_prompt_tag', 'boog_ai_default', 'boog_ai_status');
 
 const promptList = ref([]);
 const open = ref(false);
@@ -213,6 +177,16 @@ const total = ref(0);
 const title = ref("");
 const daterangeCreateTime = ref([]);
 const daterangeUpdateTime = ref([]);
+
+
+const modelList = ref([])
+
+const getModelList = () => {
+  listModel({}).then(res => {
+    modelList.value = res.rows
+  });
+}
+getModelList();
 
 const data = reactive({
   form: {},
@@ -349,12 +323,12 @@ function submitForm() {
 /** 删除按钮操作 */
 function handleDelete(row) {
   const _promptIds = row.promptId || ids.value;
-  proxy.$modal.confirm('是否确认删除提示词编号为"' + _promptIds + '"的数据项？').then(function() {
+  proxy.$modal.confirm('是否确认删除提示词编号为"' + _promptIds + '"的数据项？').then(function () {
     return delPrompt(_promptIds);
   }).then(() => {
     getList();
     proxy.$modal.msgSuccess("删除成功");
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 /** 导出按钮操作 */
