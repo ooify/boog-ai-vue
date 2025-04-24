@@ -63,7 +63,7 @@
     </el-row>
     <el-drawer v-model="openDrawer" title="Ollama管理" :direction="'rtl'">
       <el-form label-position="top">
-        <!-- {{ ollamaURLConfig }} -->
+        {{ ollamaURLConfig }}
         <el-form-item label="URL">
           <el-col :span="19">
             <el-input style="width: auto;" v-model="ollamaURLConfig.configValue" type="text" placeholder="ollama url"

@@ -1,13 +1,11 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="模型id" prop="modelId">
-        <el-input
-          v-model="queryParams.modelId"
-          placeholder="请输入模型id"
-          clearable
-          @keyup.enter="handleQuery"
-        />
+      <el-form-item label="模型" prop="modelId">
+        <el-select v-model="queryParams.modelId" placeholder="请选择模型">
+          <el-option v-for="dict in modelList" :key="dict.modelId" :label="dict.modelName"
+            :value="dict.modelId"></el-option>
+        </el-select>
       </el-form-item>
       <el-form-item label="密钥名称" prop="keyName">
         <el-input
@@ -27,13 +25,25 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="创建时间" prop="createTime">
-        <el-date-picker clearable
-          v-model="queryParams.createTime"
-          type="date"
+      <el-form-item label="默认" prop="isDefault">
+        <el-select v-model="queryParams.isDefault" placeholder="请选择默认" clearable>
+          <el-option
+            v-for="dict in boog_ai_default"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="创建时间" style="width: 308px">
+        <el-date-picker
+          v-model="daterangeCreateTime"
           value-format="YYYY-MM-DD"
-          placeholder="请选择创建时间">
-        </el-date-picker>
+          type="daterange"
+          range-separator="-"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+        ></el-date-picker>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -85,28 +95,32 @@
 
     <el-table v-loading="loading" :data="secretList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="${comment}" align="center" prop="keyId" />
-      <el-table-column label="模型id" align="center" prop="modelId" />
+      <el-table-column label="密钥id" align="center" prop="keyId" width="80"/>
+      <el-table-column label="模型id" align="center" prop="modelId" width="80"/>
       <el-table-column label="密钥名称" align="center" prop="keyName" />
       <el-table-column label="密钥值" align="center" prop="keyValue" />
       <el-table-column label="描述" align="center" prop="description" />
-      <el-table-column label="状态" align="center" prop="status">
+      <el-table-column label="状态" align="center" prop="status"width="80">
         <template #default="scope">
           <dict-tag :options="boog_ai_status" :value="scope.row.status"/>
         </template>
       </el-table-column>
-      <el-table-column label="默认" align="center" prop="isDefault" />
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+      <el-table-column label="默认" align="center" prop="isDefault"width="80">
+        <template #default="scope">
+          <dict-tag :options="boog_ai_default" :value="scope.row.isDefault"/>
+        </template>
+      </el-table-column>
+      <el-table-column label="创建时间" align="center" prop="createTime" width="130">
         <template #default="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
+      <el-table-column label="更新时间" align="center" prop="updateTime" width="130">
         <template #default="scope">
           <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width"width="130">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['server:secret:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['server:secret:remove']">删除</el-button>
@@ -125,8 +139,11 @@
     <!-- 添加或修改密钥对话框 -->
     <el-dialog :title="title" v-model="open" width="500px" append-to-body>
       <el-form ref="secretRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="模型id" prop="modelId">
-          <el-input v-model="form.modelId" placeholder="请输入模型id" />
+        <el-form-item label="模型" prop="modelId">
+          <el-select v-model="form.modelId" placeholder="请选择模型">
+            <el-option v-for="dict in modelList" :key="dict.modelId" :label="dict.modelName"
+              :value="dict.modelId"></el-option>
+          </el-select>
         </el-form-item>
         <el-form-item label="密钥名称" prop="keyName">
           <el-input v-model="form.keyName" placeholder="请输入密钥名称" />
@@ -137,16 +154,25 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" placeholder="请输入内容" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="dict in boog_ai_status"
-              :key="dict.value"
-              :label="dict.label"
-              :value="dict.value"
-            ></el-option>
-          </el-select>
-        </el-form-item>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="状态" prop="status">
+              <el-switch v-model="form.status" active-value="1" inactive-value="0" active-text="启用"
+                inactive-text="禁用"></el-switch>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="12">
+            <el-form-item label="设为默认" prop="isDefault">
+              <el-switch v-model="form.isDefault" active-value="1" inactive-value="0" active-text="是" inactive-text="否"
+                :disabled="form.status === '0'"></el-switch>
+              <div v-if="form.status === '0' && form.isDefault === '1'" class="el-form-item__error">
+                禁用状态下不能设为默认模型
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -160,9 +186,11 @@
 
 <script setup name="Secret">
 import { listSecret, getSecret, delSecret, addSecret, updateSecret } from "@/api/server/secret";
+import { listModel } from "@/api/server/model";
+
 
 const { proxy } = getCurrentInstance();
-const { boog_ai_status } = proxy.useDict('boog_ai_status');
+const { boog_ai_default, boog_ai_status } = proxy.useDict('boog_ai_default', 'boog_ai_status');
 
 const secretList = ref([]);
 const open = ref(false);
@@ -173,6 +201,17 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
+const daterangeCreateTime = ref([]);
+const daterangeUpdateTime = ref([]);
+
+const modelList = ref([])
+
+const getModelList = () => {
+  listModel({}).then(res => {
+    modelList.value = res.rows
+  });
+}
+getModelList();
 
 const data = reactive({
   form: {},
@@ -203,6 +242,15 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询密钥列表 */
 function getList() {
   loading.value = true;
+  queryParams.value.params = {};
+  if (null != daterangeCreateTime && '' != daterangeCreateTime) {
+    queryParams.value.params["beginCreateTime"] = daterangeCreateTime.value[0];
+    queryParams.value.params["endCreateTime"] = daterangeCreateTime.value[1];
+  }
+  if (null != daterangeUpdateTime && '' != daterangeUpdateTime) {
+    queryParams.value.params["beginUpdateTime"] = daterangeUpdateTime.value[0];
+    queryParams.value.params["endUpdateTime"] = daterangeUpdateTime.value[1];
+  }
   listSecret(queryParams.value).then(response => {
     secretList.value = response.rows;
     total.value = response.total;
@@ -240,6 +288,8 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
+  daterangeCreateTime.value = [];
+  daterangeUpdateTime.value = [];
   proxy.resetForm("queryRef");
   handleQuery();
 }
