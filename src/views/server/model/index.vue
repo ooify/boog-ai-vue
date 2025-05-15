@@ -61,9 +61,9 @@
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
-    <el-drawer v-model="openDrawer" title="Ollama管理" :direction="'rtl'">
+    <el-drawer size="40%" v-model="openDrawer" title="Ollama管理" :direction="'rtl'">
       <el-form label-position="top">
-        {{ ollamaURLConfig }}
+        <!-- {{ ollamaURLConfig }} -->
         <el-form-item label="URL">
           <el-col :span="19">
             <el-input style="width: auto;" v-model="ollamaURLConfig.configValue" type="text" placeholder="ollama url"
@@ -83,7 +83,6 @@
               </template>
             </el-input>
           </el-col>
-
           <!-- 简化的文本风格进度显示 -->
           <el-collapse v-model="activeCollapses" class="progress-collapse">
             <el-collapse-item name="progress" :title="`模型状态: ${showProgress ? '下载中' : '空闲'}`">
@@ -110,7 +109,6 @@
               </div>
             </el-collapse-item>
           </el-collapse>
-
           <el-table v-loading="loading" :data="ollamaModels" style="margin-top: 16px; width: 100%;">
             <el-table-column label="模型代码" align="center" prop="model" width="150" />
             <el-table-column label="模型名称" align="center" prop="name" width="150" />
@@ -124,6 +122,15 @@
             </el-table-column>
           </el-table>
         </el-form-item>
+      <!-- <el-form-item label="模型文件">
+        <el-col :span="24">
+          <el-input rows="15" type="textarea" v-model="CreatemodelInfo.modelfile" placeholder="请输入模型文件内容" />
+        </el-col>
+        <el-col :span="24" style="margin-top: 10px;">
+          <el-button type="primary" @click="handleModelAdd">新建模型</el-button>
+        </el-col>
+      </el-form-item> -->
+
       </el-form>
     </el-drawer>
 
@@ -284,7 +291,7 @@
 import { listModel, getModel, delModel, addModel, updateModel } from "@/api/server/model";
 import { getConfigKey, listConfig, updateConfig } from "@/api/system/config";
 import axios from 'axios';
-import { ref } from 'vue';
+import { ref, onMounted, computed,onUnmounted } from 'vue';
 const { proxy } = getCurrentInstance();
 const { boog_ai_model_tag, boog_ai_default, boog_ai_status, boog_ai_model_type } = proxy.useDict('boog_ai_model_tag', 'boog_ai_default', 'boog_ai_status', 'boog_ai_model_type');
 
@@ -304,6 +311,12 @@ const openDrawer = ref(false);
 
 const ollamaURLConfig = ref({});
 const ollamaModels = ref([]);
+
+const CreatemodelInfo = ref({
+  name: '',
+  modelfile: '',
+  stream: true,
+})
 
 const getConfig = () => {
   listConfig().then(res => {

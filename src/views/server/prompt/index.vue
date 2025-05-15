@@ -162,7 +162,6 @@
 <script setup name="Prompt">
 import { listPrompt, getPrompt, delPrompt, addPrompt, updatePrompt } from "@/api/server/prompt";
 import { listModel } from "@/api/server/model";
-import JsonEditorVue from 'json-editor-vue'
 const { proxy } = getCurrentInstance();
 const { boog_ai_prompt_tag, boog_ai_default, boog_ai_status } = proxy.useDict('boog_ai_prompt_tag', 'boog_ai_default', 'boog_ai_status');
 
