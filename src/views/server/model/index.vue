@@ -140,13 +140,13 @@
       <el-table-column label="模型代码" align="center" prop="modelCode" width="200" />
       <el-table-column label="模型名称" align="center" prop="modelName" width="200" />
       <el-table-column label="模型版本" align="center" prop="modelVersion" width="80" />
-      <el-table-column label="提供方" align="center" prop="provider" />
+      <el-table-column label="提供方" align="center" prop="provider" width="100" />
       <el-table-column label="模型类型" align="center" prop="modelType" width="100">
         <template #default="scope">
           <dict-tag :options="boog_ai_model_type" :value="scope.row.modelType" />
         </template>
       </el-table-column>
-      <el-table-column label="模型描述" align="center" prop="description" />
+      <el-table-column label="模型描述" align="center" prop="description" show-overflow-tooltip width="100"/>
       <el-table-column label="调用地址" align="center" prop="apiEndpoint" width="180" />
       <el-table-column label="模型特点" align="center" prop="tag">
         <template #default="scope">

@@ -57,8 +57,8 @@
     <el-table v-loading="loading" :data="promptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="提示词id" align="center" prop="promptId" width="80" />
-      <el-table-column label="提示词名称" align="center" prop="promptName" />
-      <el-table-column label="提示词内容" align="center" prop="promptText" />
+      <el-table-column label="提示词名称" align="center" prop="promptName"width="150" />
+      <el-table-column label="提示词内容" align="center" prop="promptText"width="200" show-overflow-tooltip />
       <el-table-column label="描述" align="center" prop="description" />
       <el-table-column label="模型id" align="center" prop="modelId" width="80" />
       <el-table-column label="类型" align="center" prop="tag" width="80">
@@ -106,8 +106,7 @@
           <el-input v-model="form.promptName" placeholder="请输入提示词名称" />
         </el-form-item>
         <el-form-item label="内容" prop="promptText">
-          <!-- <el-input v-model="form.promptText" type="textarea" placeholder="请输入内容" /> -->
-           <editor v-model="form.promptText" :height="200"/>
+           <el-input v-model="form.promptText" type="textarea" placeholder="请输入内容" :autosize="{ minRows: 10, maxRows: 20 }"/>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" placeholder="请输入内容" />

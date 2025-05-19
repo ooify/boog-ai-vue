@@ -97,8 +97,8 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="密钥id" align="center" prop="keyId" width="80"/>
       <el-table-column label="模型id" align="center" prop="modelId" width="80"/>
-      <el-table-column label="密钥名称" align="center" prop="keyName" />
-      <el-table-column label="密钥值" align="center" prop="keyValue" />
+      <el-table-column label="密钥名称" align="center" prop="keyName" width="150"/>
+      <el-table-column label="密钥值" align="center" prop="keyValue" width="300"/>
       <el-table-column label="描述" align="center" prop="description" />
       <el-table-column label="状态" align="center" prop="status"width="80">
         <template #default="scope">
